@@ -1,44 +1,55 @@
 from rest_framework import generics
+from django.db.models import Avg, Count
+
 from .models import Category, Product, Review
-from .serializers import CategorySerializer, ProductSerializer, ReviewSerializer, ProductReviewSerializer
-from django.db.models import Count
+from .serializers import (
+    CategorySerializer,
+    ProductSerializer,
+    ReviewSerializer,
+    ProductReviewSerializer
+)
 
 
-# Category
-class CategoryListView(generics.ListAPIView):
+# CATEGORY
+
+class CategoryListCreateView(generics.ListCreateAPIView):
     queryset = Category.objects.annotate(
         products_count=Count('product')
     )
     serializer_class = CategorySerializer
 
 
-class CategoryDetailView(generics.RetrieveAPIView):
+class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Category.objects.all()
     serializer_class = CategorySerializer
 
 
-# Product
-class ProductListView(generics.ListAPIView):
+# PRODUCT
+
+class ProductListCreateView(generics.ListCreateAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
 
 
-class ProductDetailView(generics.RetrieveAPIView):
+class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Product.objects.all()
     serializer_class = ProductSerializer
 
 
-class ProductReviewSerializer(generics.ListCreateAPIView):
-    queryset = Product.objects.all()
+# REVIEW
+
+class ReviewListCreateView(generics.ListCreateAPIView):
+    queryset = Review.objects.all()
+    serializer_class = ReviewSerializer
+
+
+class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Review.objects.all()
+    serializer_class = ReviewSerializer
+
+
+# PRODUCTS WITH REVIEWS
+
+class ProductReviewsView(generics.ListAPIView):
+    queryset = Product.objects.prefetch_related('review_set')
     serializer_class = ProductReviewSerializer
-
-
-# Review
-class ReviewListView(generics.ListAPIView):
-    queryset = Review.objects.all()
-    serializer_class = ReviewSerializer
-
-
-class ReviewDetailView(generics.RetrieveAPIView):
-    queryset = Review.objects.all()
-    serializer_class = ReviewSerializer

@@ -1,7 +1,10 @@
+from django.contrib.auth.models import User
+from django.contrib.auth import authenticate
+from rest_framework.authtoken.models import Token
 from rest_framework import serializers
 from django.db.models import Avg
 
-from .models import Category, Product, Review
+from .models import Category, Product, Review, ConfirmationCode
 
 
 class CategorySerializer(serializers.ModelSerializer):
@@ -85,3 +88,78 @@ class ProductReviewSerializer(serializers.ModelSerializer):
     def get_rating(self, obj):
         avg = obj.review_set.aggregate(avg=Avg('stars'))['avg']
         return round(avg, 2) if avg else 0
+    
+
+class RegisterSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True)
+
+    class Meta:
+        model = User
+        fields = ['username', 'password']
+
+    def create(self, validated_data):
+        user = User.objects.create_user(
+            username=validated_data['username'],
+            password=validated_data['password'],
+            is_active=False
+    )
+
+        ConfirmationCode.objects.create(user=user)
+
+        return user
+    
+
+class LoginSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    password = serializers.CharField()
+
+    def validate(self, attrs):
+        user = authenticate(
+            username=attrs['username'],
+            password=attrs['password']
+        )
+
+        if not user:
+            raise serializers.ValidationError(
+                'Неверный логин или пароль'
+            )
+
+        if not user.is_active:
+            raise serializers.ValidationError(
+                'Аккаунт не подтвержден'
+            )
+
+        attrs['user'] = user
+        return attrs
+    
+
+class ConfirmSerializer(serializers.Serializer):
+    username = serializers.CharField()
+    code = serializers.CharField()
+
+    def validate(self, attrs):
+        try:
+            user = User.objects.get(
+                username=attrs['username']
+            )
+        except User.DoesNotExist:
+            raise serializers.ValidationError(
+                'Пользователь не найден'
+            )
+
+        try:
+            confirm = ConfirmationCode.objects.get(
+                user=user
+            )
+        except ConfirmationCode.DoesNotExist:
+            raise serializers.ValidationError(
+                'Код подтверждения не найден'
+            )
+
+        if confirm.code != attrs['code']:
+            raise serializers.ValidationError(
+                'Неверный код'
+            )
+
+        attrs['user'] = user
+        return attrs

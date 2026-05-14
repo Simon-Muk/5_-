@@ -1,5 +1,7 @@
 from django.db import models
 from django.core.validators import MinValueValidator, MaxValueValidator
+from django.contrib.auth.models import User
+import random
 
 
 class Category(models.Model):
@@ -28,3 +30,21 @@ class Review(models.Model):
     
     def __str__(self):
         return self.text
+    
+
+class ConfirmationCode(models.Model):
+    user = models.OneToOneField(
+        User,
+        on_delete=models.CASCADE
+    )
+
+    code = models.CharField(max_length=6)
+
+    def save(self, *args, **kwargs):
+        if not self.code:
+            self.code = str(random.randint(100000, 999999))
+
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f'{self.user.username} - {self.code}'

@@ -1,11 +1,17 @@
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
-from rest_framework.authtoken.models import Token
-from rest_framework import generics
-from django.db.models import Avg, Count
+from django.contrib.auth.models import User
+from django.contrib.auth import authenticate
 
-from .models import Category, Product, Review
+from rest_framework import generics, status
+from rest_framework.response import Response
+from rest_framework.authtoken.models import Token
+
+from .models import (
+    Category,
+    Product,
+    Review,
+    ConfirmationCode
+)
+
 from .serializers import (
     CategorySerializer,
     ProductSerializer,
@@ -16,8 +22,12 @@ from .serializers import (
     ConfirmSerializer
 )
 
+from django.db.models import Count
+
+
 
 # CATEGORY
+
 
 class CategoryListCreateView(generics.ListCreateAPIView):
     queryset = Category.objects.annotate(
@@ -31,7 +41,9 @@ class CategoryDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = CategorySerializer
 
 
+
 # PRODUCT
+
 
 class ProductListCreateView(generics.ListCreateAPIView):
     queryset = Product.objects.all()
@@ -43,7 +55,9 @@ class ProductDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ProductSerializer
 
 
+
 # REVIEW
+
 
 class ReviewListCreateView(generics.ListCreateAPIView):
     queryset = Review.objects.all()
@@ -55,17 +69,27 @@ class ReviewDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = ReviewSerializer
 
 
-# PRODUCTS WITH REVIEWS
+
+# PRODUCT REVIEWS
+
 
 class ProductReviewsView(generics.ListAPIView):
-    queryset = Product.objects.prefetch_related('review_set')
+    queryset = Product.objects.prefetch_related(
+        'review_set'
+    )
+
     serializer_class = ProductReviewSerializer
 
 
-class RegisterView(APIView):
 
-    def post(self, request):
-        serializer = RegisterSerializer(
+# REGISTER
+
+
+class RegisterView(generics.CreateAPIView):
+    serializer_class = RegisterSerializer
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(
             data=request.data
         )
 
@@ -73,18 +97,50 @@ class RegisterView(APIView):
 
         user = serializer.save()
 
-        code = ConfirmationCode.objects.get(user=user)
+        code = ConfirmationCode.objects.get(
+            user=user
+        )
 
         return Response({
             'message': 'Пользователь создан',
             'confirmation_code': code.code
         })
-    
 
-class ConfirmUserView(APIView):
+
+
+# LOGIN
+
+
+class LoginView(generics.GenericAPIView):
+    serializer_class = LoginSerializer
 
     def post(self, request):
-        serializer = ConfirmSerializer(
+        serializer = self.get_serializer(
+            data=request.data
+        )
+
+        serializer.is_valid(raise_exception=True)
+
+        user = serializer.validated_data['user']
+
+        token, _ = Token.objects.get_or_create(
+            user=user
+        )
+
+        return Response({
+            'token': token.key
+        })
+
+
+
+# CONFIRM
+
+
+class ConfirmUserView(generics.GenericAPIView):
+    serializer_class = ConfirmSerializer
+
+    def post(self, request):
+        serializer = self.get_serializer(
             data=request.data
         )
 
@@ -95,26 +151,10 @@ class ConfirmUserView(APIView):
         user.is_active = True
         user.save()
 
-        Token.objects.get_or_create(user=user)
+        Token.objects.get_or_create(
+            user=user
+        )
 
         return Response({
             'message': 'Аккаунт подтвержден'
-        })
-    
-
-class LoginView(APIView):
-
-    def post(self, request):
-        serializer = LoginSerializer(
-            data=request.data
-        )
-
-        serializer.is_valid(raise_exception=True)
-
-        user = serializer.validated_data['user']
-
-        token, _ = Token.objects.get_or_create(user=user)
-
-        return Response({
-            'token': token.key
         })
